@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Market Cap Çarpan Hesaplayıcı (Coin A → Coin B)</title>
+  <meta name="description" content="Bir coin A'nın, coin B'nin piyasa değerine (market cap) ulaşması halinde kaç kat yapacağını ve yeni fiyatını hesaplayın. MC/FDV, fiyat+arz girişleri, senaryo listesi ve grafik." />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{--bg:#0f172a;--card:#0b1220;--accent:#f59e0b;--muted:#94a3b8;--glass:rgba(255,255,255,0.05)}
+    *{box-sizing:border-box;font-family:Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+    body{margin:0;background:linear-gradient(180deg,#071029 0%, #0b1220 100%);color:#e6eef8;min-height:100vh;padding:28px}
+    .container{max-width:1200px;margin:0 auto}
+    header{display:flex;gap:14px;align-items:center;margin-bottom:16px}
+    h1{font-size:22px;margin:0}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    .card{background:var(--card);border-radius:12px;padding:16px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type=number],input[type=text],select{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:var(--glass);color:inherit}
+    .row{display:flex;gap:10px}
+    .row>div{flex:1}
+    .muted{color:var(--muted);font-size:13px}
+    button{background:var(--accent);border:none;color:#0b1220;padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:700}
+    .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .kpi{background:rgba(255,255,255,0.03);padding:12px;border-radius:10px}
+    .kpi .label{font-size:12px;color:var(--muted)}
+    .kpi .value{font-size:20px;font-weight:800}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.06);font-size:13px}
+    th{color:var(--muted);text-align:left}
+    td{text-align:right}
+    td:first-child,th:first-child{text-align:left}
+    @media(max-width:1000px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="2" y="2" width="20" height="20" rx="6" fill="#0b1220" stroke="#f59e0b" stroke-width="1.2" />
+      <path d="M5 15c2-5 6-6 9-6s7 1 8 6" stroke="#f59e0b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <div>
+      <h1>Market Cap Çarpan Hesaplayıcı (Coin A → Coin B)</h1>
+      <div class="muted">A coin'i B'nin market cap'ine ulaşırsa **kaç kat** olur ve **yeni fiyat** ne olur?</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <h2 style="margin:0 0 8px 0">Kaynak Coin (A)</h2>
+      <div class="row">
+        <div>
+          <label for="curMethod">Giriş türü</label>
+          <select id="curMethod">
+            <option value="mc">Piyasa değeri (MC)</option>
+            <option value="price">Fiyat + Dolaşımdaki Arz</option>
+          </select>
+        </div>
+        <div>
+          <label for="currency">Para birimi</label>
+          <select id="currency">
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+            <option value="TRY">TRY</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="curMCBox" style="margin-top:12px">
+        <label for="curMC">Mevcut piyasa değeri (A) — MC</label>
+        <input id="curMC" type="number" min="0" step="0.01" placeholder="ör. 750000000" />
+      </div>
+      <div id="curPSBox" style="margin-top:12px; display:none">
+        <div class="row">
+          <div>
+            <label for="curPrice">Fiyat (A)</label>
+            <input id="curPrice" type="number" min="0" step="0.00000001" placeholder="ör. 0.25" />
+          </div>
+          <div>
+            <label for="curSupply">Dolaşımdaki arz (A)</label>
+            <input id="curSupply" type="number" min="0" step="1" placeholder="ör. 3000000000" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div>
+            <label for="curMaxSupply">Maks arz (FDV için, opsiyonel)</label>
+            <input id="curMaxSupply" type="number" min="0" step="1" placeholder="ör. 10000000000" />
+          </div>
+          <div class="muted" style="align-self:center">FDV = fiyat × maks arz</div>
+        </div>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:14px 0" />
+
+      <h2 style="margin:0 0 8px 0">Hedef (B)</h2>
+      <div class="row">
+        <div>
+          <label for="tgtMethod">Giriş türü</label>
+          <select id="tgtMethod">
+            <option value="mc">Piyasa değeri (MC)</option>
+            <option value="price">Fiyat + Dolaşımdaki Arz</option>
+          </select>
+        </div>
+        <div>
+          <label for="useFDV">FDV kullan (B)</label>
+          <select id="useFDV">
+            <option value="no" selected>Hayır</option>
+            <option value="yes">Evet (fiyat×maks arz)</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="tgtMCBox" style="margin-top:12px">
+        <label for="tgtMC">Hedef piyasa değeri (B) — MC/FDV</label>
+        <input id="tgtMC" type="number" min="0" step="0.01" placeholder="ör. 20000000000" />
+      </div>
+      <div id="tgtPSBox" style="margin-top:12px; display:none">
+        <div class="row">
+          <div>
+            <label for="tgtPrice">Fiyat (B)</label>
+            <input id="tgtPrice" type="number" min="0" step="0.00000001" placeholder="ör. 1800" />
+          </div>
+          <div>
+            <label for="tgtSupply">Dolaşımdaki arz (B)</label>
+            <input id="tgtSupply" type="number" min="0" step="1" placeholder="ör. 120000000" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div>
+            <label for="tgtMaxSupply">Maks arz (B, FDV için)</label>
+            <input id="tgtMaxSupply" type="number" min="0" step="1" placeholder="opsiyonel" />
+          </div>
+          <div class="muted" style="align-self:center">FDV seçiliyse fiyat × maks arz kullanılır.</div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;display:flex;gap:8px;align-items:center">
+        <button id="run">Hesapla</button>
+        <button id="download" style="background:#0ea5a4">Senaryolar CSV</button>
+        <div style="flex:1;text-align:right" class="muted">Son hesaplama: <span id="lastRun">—</span></div>
+      </div>
+
+    </section>
+
+    <section class="card">
+      <div class="kpis">
+        <div class="kpi"><div class="label">Çarpan (B/A)</div><div id="k_factor" class="value">—</div></div>
+        <div class="kpi"><div class="label">% Değişim</div><div id="k_change" class="value">—</div></div>
+        <div class="kpi"><div class="label">Hedef Fiyat (A)</div><div id="k_price" class="value">—</div></div>
+      </div>
+      <div style="height:12px"></div>
+      <canvas id="chart" height="280" aria-label="MC karşılaştırma" role="img"></canvas>
+
+      <div style="margin-top:12px">
+        <label for="scenarios">Senaryolar (market cap değerleri, virgülle ayır)</label>
+        <input id="scenarios" type="text" value="100000000, 1000000000, 10000000000, 50000000000" />
+        <div class="muted" style="margin-top:6px">Örn: 100M, 1B, 10B, 50B (USD/EUR/TRY seçiminize göre sadece biçim değişir, dönüşüm yapılmaz)</div>
+        <div id="scTableWrap" style="max-height:260px;overflow:auto;margin-top:10px"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="card" style="margin-top:18px">
+    <h3 style="margin-top:0">Nasıl hesaplanır?</h3>
+    <p class="muted">Temel formül: <strong>Çarpan = Hedef MC / Mevcut MC</strong>. Fiyat arz aynı kalırsa <strong>Yeni Fiyat = Mevcut Fiyat × Çarpan</strong>. Mevcut fiyat bilinmiyorsa ama arz biliniyorsa <strong>Yeni Fiyat = Hedef MC / Mevcut Arz</strong>. FDV seçeneği kullanılırsa MC yerine <em>fiyat × maks arz</em> dikkate alınır.</p>
+  </div>
+</div>
+
+<script>
+  // ------------- Utils -------------
+  const $ = id => document.getElementById(id);
+  const fmtCurr = (n,c) => !isFinite(n)?'—': n.toLocaleString('tr-TR',{style:'currency',currency:c||'USD',maximumFractionDigits:2});
+  const fmtNum = (n,dec=2)=> !isFinite(n)?'—': Number(n).toLocaleString('tr-TR',{maximumFractionDigits:dec});
+
+  function parseScenarios(txt){
+    return txt.split(/[,，]/).map(s=>s.trim().replace(/\s/g,'')).map(v=>{
+      if(/^[0-9]+(\.[0-9]+)?$/.test(v)) return parseFloat(v);
+      // support shorthand like 100M, 1B
+      const m = v.match(/^([0-9]+(?:\.[0-9]+)?)([kmbt])$/i);
+      if(m){
+        const x = parseFloat(m[1]); const u = m[2].toLowerCase();
+        const map={k:1e3,m:1e6,b:1e9,t:1e12};
+        return x*(map[u]||1);
+      }
+      return NaN;
+    }).filter(x=>isFinite(x)&&x>0);
+  }
+
+  function getCurrentCap(){
+    const curMethod = $('curMethod').value;
+    if(curMethod==='mc'){
+      const mc = parseFloat($('curMC').value)||0; return mc>0? mc : NaN;
+    } else {
+      const p = parseFloat($('curPrice').value)||0;
+      const s = parseFloat($('curSupply').value)||0;
+      const maxS = parseFloat($('curMaxSupply').value)||0;
+      if(p>0 && s>0) return p*s; // circulating MC
+      if(p>0 && maxS>0) return p*maxS; // FDV (A) if only max supply given
+      return NaN;
+    }
+  }
+
+  function getTargetCap(){
+    const tgtMethod = $('tgtMethod').value;
+    const useFDV = $('useFDV').value==='yes';
+    if(tgtMethod==='mc'){
+      const mc = parseFloat($('tgtMC').value)||0; return mc>0? mc : NaN;
+    } else {
+      const p = parseFloat($('tgtPrice').value)||0;
+      const s = parseFloat($('tgtSupply').value)||0;
+      const maxS = parseFloat($('tgtMaxSupply').value)||0;
+      if(useFDV){ if(p>0 && maxS>0) return p*maxS; }
+      else { if(p>0 && s>0) return p*s; }
+      return NaN;
+    }
+  }
+
+  function getNewPriceAtTarget(factor){
+    // Prefer current price if provided; else use target cap / current supply if supply is known.
+    const curPrice = parseFloat($('curPrice').value)||NaN;
+    const curSupply = parseFloat($('curSupply').value)||NaN;
+    const tgtCap = getTargetCap();
+    if(isFinite(curPrice) && curPrice>0) return curPrice*factor;
+    if(isFinite(curSupply) && curSupply>0 && isFinite(tgtCap)) return tgtCap/curSupply;
+    return NaN;
+  }
+
+  // ------------- UI wiring -------------
+  $('curMethod').addEventListener('change',()=>{
+    const mc = $('curMethod').value==='mc';
+    $('curMCBox').style.display = mc? '' : 'none';
+    $('curPSBox').style.display = mc? 'none' : '';
+  });
+  $('tgtMethod').addEventListener('change',()=>{
+    const mc = $('tgtMethod').value==='mc';
+    $('tgtMCBox').style.display = mc? '' : 'none';
+    $('tgtPSBox').style.display = mc? 'none' : '';
+  });
+
+  const ctx = document.getElementById('chart').getContext('2d');
+  let chart = new Chart(ctx, {type:'bar', data:{labels:['A (Mevcut)','B (Hedef)'], datasets:[{label:'Market Cap', data:[0,0]}]}, options:{plugins:{legend:{display:false}}, scales:{y:{ticks:{color:'#e6eef8'}}}}});
+
+  function render(){
+    const curCap = getCurrentCap();
+    const tgtCap = getTargetCap();
+    const cur = $('currency').value;
+
+    if(!isFinite(curCap) || !isFinite(tgtCap) || curCap<=0 || tgtCap<=0){
+      $('k_factor').textContent='—';
+      $('k_change').textContent='—';
+      $('k_price').textContent='—';
+      chart.data.datasets[0].data=[0,0]; chart.update();
+      $('scTableWrap').innerHTML='';
+      return;
+    }
+
+    const factor = tgtCap / curCap;
+    const percent = (factor-1)*100;
+    const newPrice = getNewPriceAtTarget(factor);
+
+    $('k_factor').textContent = factor.toFixed(2) + 'x';
+    $('k_change').textContent = (percent>=0?'+':'') + percent.toFixed(2) + '%';
+    $('k_price').textContent = isFinite(newPrice)? fmtCurr(newPrice, cur) : '—';
+
+    chart.data.datasets[0].data=[curCap, tgtCap]; chart.update();
+
+    // scenarios
+    const arr = parseScenarios($('scenarios').value);
+    if(arr.length){
+      let html = '<table><thead><tr><th>Senaryo MC</th><th>Çarpan</th><th>Yeni Fiyat (A)</th></tr></thead><tbody>';
+      for(const cap of arr){
+        const f = cap/curCap; const np = getNewPriceAtTarget(f);
+        html += `<tr><td>${fmtCurr(cap, cur)}</td><td style="text-align:right">${f.toFixed(2)}x</td><td style="text-align:right">${isFinite(np)?fmtCurr(np,cur):'—'}</td></tr>`;
+      }
+      html += '</tbody></table>';
+      $('scTableWrap').innerHTML = html;
+      window._SC_CSV = ['scenario_mc,factor,new_price', ...arr.map(cap=>[cap, (cap/curCap).toFixed(6), (getNewPriceAtTarget(cap/curCap)||0).toFixed(8)].join(','))].join('\n');
+    } else {
+      $('scTableWrap').innerHTML='';
+      window._SC_CSV = '';
+    }
+
+    $('lastRun').textContent = new Date().toLocaleString('tr-TR');
+  }
+
+  $('run').addEventListener('click', render);
+  $('download').addEventListener('click', ()=>{
+    if(!window._SC_CSV){ alert('Senaryo listesi boş.'); return; }
+    const blob = new Blob([window._SC_CSV],{type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'mc_scenarios.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+
+  // first render (empty)
+  render();
+</script>
+</body>
+</html>
